@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>분실물 게시판</title>
+<style>
+body { font-family: sans-serif; margin: 20px; font-size: 16px; }
+#list, #detail { display: none; }
+.item { border:1px solid #ccc; padding:10px; margin-bottom:10px; cursor:pointer; }
+#detail img { max-width:300px; cursor:pointer; }
+#overlay {
+  display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+  background:rgba(0,0,0,0.9); justify-content:center; align-items:center;
+}
+#overlay img { max-width:90%; max-height:90%; }
+#overlay button {
+  position:absolute; top:20px; right:20px; font-size:24px;
+  background:rgba(255,255,255,0.7); border:none; border-radius:50%; width:40px; height:40px; cursor:pointer;
+}
+.chat-box { border-top:1px solid #ccc; margin-top:10px; padding-top:10px; }
+.chat-msg { border-bottom:1px solid #eee; padding:5px; }
+</style>
+</head>
+<body>
+
+<h1>분실물 게시판</h1>
+<div>
+  <button onclick="showList()">분실물 목록</button>
+  <button onclick="newIssue()">분실물 등록</button>
+</div>
+
+<div id="list">
+  <h2>분실물 목록</h2>
+  <div id="itemList"></div>
+</div>
+
+<div id="detail">
+  <h2 id="detailTitle"></h2>
+  <p id="detailBody"></p>
+  <img id="detailImage" src="">
+  <div class="chat-box">
+    <h3>채팅</h3>
+    <div id="chatList"></div>
+    <input id="chatInput" placeholder="메시지 입력">
+    <button onclick="sendChat()">보내기</button>
+  </div>
+</div>
+
+<div id="overlay">
+  <img id="overlayImg">
+  <button onclick="closeOverlay()">✕</button>
+</div>
+
+<script>
+const owner = "your-username";     // 🔸 본인 깃허브 ID
+const repo  = "lostfound";         // 🔸 저장소 이름
+const apiBase = `https://api.github.com/repos/${owner}/${repo}`;
+const itemList = document.getElementById('itemList');
+let currentIssueNumber = null;
+
+async function loadList() {
+  const res = await fetch(`${apiBase}/issues?state=open`);
+  const issues = await res.json();
+  itemList.innerHTML = "";
+  issues.forEach(issue => {
+    const div = document.createElement('div');
+    div.className = "item";
+    div.innerHTML = `<strong>${issue.title}</strong><br>${issue.body.substring(0,80)}...`;
+    div.onclick = ()=>showDetail(issue.number);
+    itemList.appendChild(div);
+  });
+}
+
+function showList() {
+  document.getElementById('list').style.display = 'block';
+  document.getElementById('detail').style.display = 'none';
+  loadList();
+}
+
+function newIssue() {
+  // 이슈 새로 등록 (prefilled)
+  const url = `https://github.com/${owner}/${repo}/issues/new?title=${encodeURIComponent("분실물 제목 입력")}&body=${encodeURIComponent("분실물 내용과 이미지 URL을 입력하세요.")}`;
+  window.open(url, "_blank");
+}
+
+async function showDetail(number) {
+  currentIssueNumber = number;
+  document.getElementById('list').style.display = 'none';
+  document.getElementById('detail').style.display = 'block';
+
+  // 상세 내용 불러오기
+  const issue = await fetch(`${apiBase}/issues/${number}`).then(r=>r.json());
+  document.getElementById('detailTitle').innerText = issue.title;
+  document.getElementById('detailBody').innerHTML = issue.body.replace(/\n/g,'<br>');
+
+  // 본문에서 이미지 URL 추출 (있을 때만)
+  const imgMatch = issue.body.match(/https?:\/\/\S+\.(jpg|jpeg|png|gif)/i);
+  if (imgMatch) {
+    const img = document.getElementById('detailImage');
+    img.src = imgMatch[0];
+    img.style.display = 'block';
+  } else {
+    document.getElementById('detailImage').style.display = 'none';
+  }
+
+  // 채팅(댓글) 불러오기
+  loadComments(number);
+}
+
+async function loadComments(number) {
+  const res = await fetch(`${apiBase}/issues/${number}/comments`);
+  const comments = await res.json();
+  const chatDiv = document.getElementById('chatList');
+  chatDiv.innerHTML = "";
+  comments.forEach(c => {
+    const d = document.createElement('div');
+    d.className = 'chat-msg';
+    d.textContent = `${c.user.login}: ${c.body}`;
+    chatDiv.appendChild(d);
+  });
+}
+
+async function sendChat() {
+  const msg = document.getElementById('chatInput').value.trim();
+  if (!msg) return;
+  alert("⚠️ 실제 댓글 저장은 GitHub API POST 권한이 필요합니다.\n(여기서는 예시로만 작동)");
+  // 실제 저장하려면 GitHub Token을 사용해 POST /issues/{number}/comments 호출
+  document.getElementById('chatInput').value = '';
+}
+
+document.getElementById('detailImage').onclick = function(){
+  document.getElementById('overlay').style.display='flex';
+  document.getElementById('overlayImg').src=this.src;
+};
+function closeOverlay(){
+  document.getElementById('overlay').style.display='none';
+}
+
+showList();
+</script>
+</body>
+</html>
